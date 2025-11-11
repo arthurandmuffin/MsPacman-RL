@@ -1,0 +1,19 @@
+MS_PACMAN_RAM_INFO = dict(
+    enemy_sue_x=6,
+    enemy_inky_x=7,
+    enemy_pinky_x=8,
+    enemy_blinky_x=9,
+    player_x=10,
+    fruit_x=11,
+    enemy_sue_y=12,
+    enemy_inky_y=13,
+    enemy_pinky_y=14,
+    enemy_blinky_y=15,
+    player_y=16,
+    fruit_y=17,
+    ghosts_count=19,
+    player_direction=56,
+    dots_eaten_count=119,
+    player_score=120,
+    num_lives=123
+)
