@@ -24,7 +24,7 @@ class EpsilonGreedyExploration:
 
 # UCB: score action w/ q-value + strength * sqrt(ln(1+t)/(1+Count(s,a))), inflates score if count low
 class UCBPolicyExploration:
-    def __init__(self, exploration_strength=1.0): 
+    def __init__(self, exploration_strength=1.0):
         self.exploration_strength = exploration_strength
 
     def select(self, q_values, t, counts):

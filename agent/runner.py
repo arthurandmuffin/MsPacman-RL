@@ -2,6 +2,7 @@ import time
 
 from emulator.game_env import MsPacmanALE
 from agent.q_agent import QLearningAgent
+from agent import state_functions
 
 # Makes agent play 1 game on emulator
 def run_episode_ale(
@@ -15,8 +16,10 @@ def run_episode_ale(
         fps=60
     ):  
         init_ram = env.reset()
+        prev_action = 3 # Initialize as 3 as pacman faces left side
         # State function generalizes states to a state key
-        init_state_key = encode_state(state_function(init_ram, init_ram))
+        init_state_raw = state_function(init_ram, init_ram, prev_action)
+        init_state_key = encode_state(init_state_raw)
         prev_ram = init_ram.copy()
         total_reward = 0
         steps = 0
@@ -28,17 +31,25 @@ def run_episode_ale(
             pygame.display.set_caption("Ms. Pac-Man ALE")
 
         while True:
-            
             # If training, agent uses exploration policy; else, be greedy and take largest q
             if training:
                 action = agent.select_action(init_state_key)
             else:
-                action = int(max(range(agent.actions), key=lambda i: agent.q_by_state[init_state_key][i]))
+                q_vals = agent.q_by_state.get(init_state_key)
+                if q_vals is None:
+                    approximation_function = getattr(state_functions, state_function.__name__ + "_approximation")
+                    closest_state_q_vals = approximation_function(agent, init_state_key)
+                    action = int(max(range(agent.actions), key=lambda i: closest_state_q_vals[i]))
+                else:
+                    action = int(max(range(agent.actions), key=lambda i: agent.q_by_state[init_state_key][i]))
 
             # take action in emulator
             cur_ram, reward, isTerminal = env.step(action)
             if reward_clip:
                 reward = max(-1.0, min(1.0, reward))
+            
+            print("prev_x: ", prev_ram[10], " prev_y: ", prev_ram[16], end="")
+            print("cur_x: ", cur_ram[10], " cur_y: ", cur_ram[16])
             
             # Optionally render w/ pygames
             if render:
@@ -52,24 +63,13 @@ def run_episode_ale(
                 pygame.display.flip()
                 time.sleep(1/fps)
 
-            result_state_key = encode_state(state_function(cur_ram, prev_ram))
-            if steps < 1e10:
-                s = state_function(cur_ram, prev_ram)
-                # print("cur id:", id(cur_ram), "prev id:", id(prev_ram))
-                # print("action", str(action))
-                # print("length", len(agent.q_by_state))
-                # print("x: ", str(cur_ram[10]), end="")
-                # print("y: ", str(cur_ram[16]))
-                # diff = [(i, prev_ram[i], cur_ram[i]) for i in range(128) if prev_ram[i] != cur_ram[i]]
-                # print("changed indices:", [i for i,_,_ in diff][:20])
-                # print("px,py,dg,df,dots,lives,fruit =", 
-                #     s.get("px"), s.get("py"), s.get("distance_ghost"),
-                #     s.get("distance_fruit"), s.get("dots"),
-                #     s.get("lives"), s.get("fruit"))
+            result_state_key = encode_state(state_function(cur_ram, prev_ram, prev_action))
+
             if training:
                 agent.update(init_state_key, action, reward, result_state_key, isTerminal)
             init_state_key = result_state_key
             prev_ram = cur_ram.copy()
+            prev_action = action
 
             total_reward += reward
             steps += 1

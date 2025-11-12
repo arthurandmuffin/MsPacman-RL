@@ -1,4 +1,5 @@
-from ale_py import ALEInterface, LoggerMode, roms, Action
+from ale_py import ALEInterface, LoggerMode, roms
+from statics.ram_annotations import MS_PACMAN_RAM_INFO
 
 class MsPacmanALE:
     def __init__(self, seed=0, frame_skip=4, end_when_life_lost=False):
@@ -21,6 +22,15 @@ class MsPacmanALE:
     def reset(self):
         self.ale.reset_game()
         self._lives = self.ale.lives()
+        ram = self.read_ram()
+        player_x, player_y = ram[MS_PACMAN_RAM_INFO["player_x"]], ram[MS_PACMAN_RAM_INFO["player_y"]]
+        # Spins to avoid long waiting period at game start to affect learning
+        while True:
+            self.ale.act(0)
+            new_ram = self.read_ram()
+            new_x, new_y = new_ram[MS_PACMAN_RAM_INFO["player_x"]], new_ram[MS_PACMAN_RAM_INFO["player_y"]]
+            if (player_x != new_x or player_y != new_y):
+                break
         return self.read_ram()
     
     # Return an independent copy of RAM

@@ -97,8 +97,9 @@ class QLearningAgent:
             )
             agent.total_steps = payload["total_steps"]
             agent.state_function_name = payload["state_function_name"]
-            agent.q_by_state = defaultdict(lambda: [float(agent.init_q)] * agent.actions, payload["q_by_state"])
-            agent.count_by_state = defaultdict(lambda: [0] * agent.actions, payload["count_by_state"])
+            # Dict instead of defaultdict to recognize unseen states
+            agent.q_by_state = dict(payload["q_by_state"])
+            agent.count_by_state = dict(payload["count_by_state"])
             return agent
 
     def policy_params(self):

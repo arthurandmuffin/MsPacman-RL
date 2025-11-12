@@ -7,7 +7,7 @@ from emulator.game_env import MsPacmanALE
 parser = argparse.ArgumentParser()
 parser.add_argument("--mode", choices=["training", "play"], required=True)
 parser.add_argument("--policy", choices=["eps_greedy", "ucb"])
-parser.add_argument("--state_function", choices=["coarse_manhattan_distance"])
+parser.add_argument("--state_function", choices=["coarse_manhattan_distance", "sector_distance_state"])
 parser.add_argument("--display", choices=["true", "false"])
 parser.add_argument("--file")
 args = parser.parse_args()
@@ -38,6 +38,7 @@ elif args.mode == "play":
     agent = QLearningAgent.load(args.file)
     env = MsPacmanALE(seed=0, frame_skip=config.FRAME_SKIP, end_when_life_lost=config.END_ON_LIFE_LOSS)
     print(len(agent.q_by_state))
+    print(agent.state_function_name)
     runner.run_episode_ale(
         env=env, 
         agent=agent, 
