@@ -64,9 +64,6 @@ class QLearningAgent:
 
     # Saves agent variables + state function used to train into a while
     def save(self, path, state_function):
-        print("about to save; q_by_state len:", len(self.q_by_state))
-        first_key = next(iter(self.q_by_state))
-        print("example key:", first_key)
         payload = dict(
             actions=self.actions,
             discount=self.discount,

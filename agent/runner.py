@@ -1,8 +1,9 @@
-import time
+import time, random
 
 from emulator.game_env import MsPacmanALE
 from agent.q_agent import QLearningAgent
-from agent import state_functions
+from agent import state_functions, config
+from statics.ram_annotations import MS_PACMAN_RAM_INFO
 
 # Makes agent play 1 game on emulator
 def run_episode_ale(
@@ -17,11 +18,13 @@ def run_episode_ale(
     ):  
         init_ram = env.reset()
         prev_action = 3 # Initialize as 3 as pacman faces left side
+        stuck_flag = False
         # State function generalizes states to a state key
-        init_state_raw = state_function(init_ram, init_ram, prev_action)
+        init_state_raw = state_function(init_ram, init_ram, prev_action, stuck_flag)
         init_state_key = encode_state(init_state_raw)
         prev_ram = init_ram.copy()
         total_reward = 0
+        total_raw_reward = 0
         steps = 0
         
         if render:
@@ -43,13 +46,21 @@ def run_episode_ale(
                 else:
                     action = int(max(range(agent.actions), key=lambda i: agent.q_by_state[init_state_key][i]))
 
+            if action == prev_action and stuck_flag:
+                actions = [0,1,2,3]
+                actions.remove(action)
+                action = random.choice(actions)
             # take action in emulator
             cur_ram, reward, isTerminal = env.step(action)
+            penalty, stuck_flag = stuck_penalty(prev_ram, cur_ram, prev_action, action)
+            total_raw_reward += reward
+            reward += penalty
+
             if reward_clip:
                 reward = max(-1.0, min(1.0, reward))
             
-            print("prev_x: ", prev_ram[10], " prev_y: ", prev_ram[16], end="")
-            print("cur_x: ", cur_ram[10], " cur_y: ", cur_ram[16])
+            #print("prev_x: ", prev_ram[10], " prev_y: ", prev_ram[16], end="")
+            #print("cur_x: ", cur_ram[10], " cur_y: ", cur_ram[16])
             
             # Optionally render w/ pygames
             if render:
@@ -63,7 +74,7 @@ def run_episode_ale(
                 pygame.display.flip()
                 time.sleep(1/fps)
 
-            result_state_key = encode_state(state_function(cur_ram, prev_ram, prev_action))
+            result_state_key = encode_state(state_function(cur_ram, prev_ram, prev_action, stuck_flag))
 
             if training:
                 agent.update(init_state_key, action, reward, result_state_key, isTerminal)
@@ -78,10 +89,21 @@ def run_episode_ale(
 
         if render:
             pygame.quit()
-        return total_reward, steps
+        return total_reward, steps, total_raw_reward
 
 def encode_state(state):
     return tuple(sorted(state.items()))
+
+def stuck_penalty(prev_ram, cur_ram, prev_action, action):
+    r = MS_PACMAN_RAM_INFO
+    cur_position = (cur_ram[r["player_x"]], cur_ram[r["player_y"]])
+    prev_position = (prev_ram[r["player_x"]], prev_ram[r["player_y"]])
+    if cur_position == prev_position:
+        if prev_action == action:
+            return config.STUCK_PENALTY, True
+        else:
+            return config.STUCK_PENALTY / 2, True
+    return 0, False
 
 # Training loop
 def train_loop(
@@ -113,12 +135,13 @@ def train_loop(
         ucb_strength=ucb_strength, seed=seed,
     )
 
-    history = {"reward": [], "steps": []}
-    for ep in range(episodes):
-        reward, steps = run_episode_ale(
+    history = {"reward": [], "steps": [], "raw_reward": []}
+    for _ in range(episodes):
+        reward, steps, raw_reward = run_episode_ale(
             env, agent, state_function, training=True, max_steps=max_steps, reward_clip=reward_clip,
         )
-        history["reward"].append(reward); 
+        history["reward"].append(reward)
+        history["raw_reward"].append(raw_reward)
         history["steps"].append(steps)
 
     # final save

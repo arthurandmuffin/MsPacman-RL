@@ -1,14 +1,15 @@
 # Configs for training variables that can't be dictated in path args
 
 # Training loop / emulator settings
-EPISODES = 50
-FRAME_SKIP = 1
+EPISODES = 200
+FRAME_SKIP = 4
 END_ON_LIFE_LOSS = False
-REWARD_CLIP = False
-MAX_STEPS = 1e5
+REWARD_CLIP = True
+MAX_STEPS = 1e4
+STUCK_PENALTY = -2
 
 # Exploration settings
-INIT_Q = 5.0
+INIT_Q = 50.0
 # Epsilon greedy settings
 EPS_START = 1.0
 EPS_END = 0.05

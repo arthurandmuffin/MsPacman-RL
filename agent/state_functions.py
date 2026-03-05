@@ -9,7 +9,7 @@ State functions that generalize similar situations to same state key (tuple)
 
 """State Function 1"""
 # State is identified by (player_position, dots_eaten, distance to closest ghost/fruit, if there is fruit, lives remaining)
-def coarse_manhattan_distance(ram, prev_ram, prev_action):
+def coarse_manhattan_distance(ram, _prev_ram, prev_action, _):
     r = MS_PACMAN_RAM_INFO
     player_x, player_y = ram[r["player_x"]], ram[r["player_y"]]
     ghosts_coords = [
@@ -69,7 +69,7 @@ def coarse_manhattan_state_distance(state1, state2):
 
 """State Function 2"""
 
-def sector_distance_state(ram, prev_ram, prev_action):
+def sector_distance_state(ram, prev_ram, prev_action, stuck_flag):
     r = MS_PACMAN_RAM_INFO
 
     # Current positions of player & ghosts
@@ -83,52 +83,55 @@ def sector_distance_state(ram, prev_ram, prev_action):
 
     ghosts_info = []
     for ghost_x, ghost_y in ghosts:
+        if 66 < ghost_x < 100 and 50 < ghost_y < 98:
+            dx, dy = ghost_x - player_x, ghost_y - player_y
+            ghosts_info.append((ghost_x, ghost_y, dx, dy, euclid_distance(dx, dy)))
+    
+    if len(ghosts_info) == 0:
         dx, dy = ghost_x - player_x, ghost_y - player_y
         ghosts_info.append((ghost_x, ghost_y, dx, dy, euclid_distance(dx, dy)))
 
     # Get distance + direction of nearest ghost
-    gx, gy, dxg, dyg, dg = min(ghosts_info, key=lambda t: t[4])
+    _, _, dxg, dyg, dg = min(ghosts_info, key=lambda t: t[4])
     ghost_sector = round_distance_sector(dg)
     ghost_direction = relative_direction(dxg, dyg)
 
     # Fruit features
-    fruit_x, fruit_y = int(ram[r["fruit_x"]]), int(ram[r["fruit_y"]])
-    fruit_flag = True if fruit_x > 0 or fruit_y > 0 else False
-    if fruit_flag:
-        dxf, dyf = fruit_x - player_x, fruit_y - player_y
-        df = euclid_distance(dxf, dyf)
-        fruit_sector = round_distance_sector(df)
-        fruit_direction = relative_direction(dxf, dyf)
-    else:
-        fruit_sector, fruit_direction = 4, 8
+    # fruit_x, fruit_y = int(ram[r["fruit_x"]]), int(ram[r["fruit_y"]])
+    # fruit_flag = True if fruit_x > 0 or fruit_y > 0 else False
+    # if fruit_flag:
+    #     dxf, dyf = fruit_x - player_x, fruit_y - player_y
+    #     df = euclid_distance(dxf, dyf)
+    #     fruit_sector = round_distance_sector(df)
+    #     fruit_direction = relative_direction(dxf, dyf)
+    # else:
+    #     fruit_sector, fruit_direction = 4, 8
 
     # Velocity signs from previous frame (if any)
     if prev_ram is None:
         vxs, vys = 0, 0
     else:
         previous_x, previous_y = int(prev_ram[r["player_x"]]), int(prev_ram[r["player_y"]])
-        dxp, dyp = player_x - previous_x, player_y - previous_y
-        vxs = 0 if dxp == 0 else (1 if dxp > 0 else -1)
-        vys = 0 if dyp == 0 else (1 if dyp > 0 else -1)
+        diff_player_x, diff_player_y = player_x - previous_x, player_y - previous_y
+        velocity_x = 0 if diff_player_x == 0 else (1 if diff_player_x > 0 else -1)
+        velocity_y = 0 if diff_player_y == 0 else (1 if diff_player_y > 0 else -1)
 
     # Coarse position to reduce state count
-    px_bin = player_x // 4
-    py_bin = player_y // 4
+    player_x = player_x // 4
+    player_y = player_y // 4
 
     # Heading (unknown exact encoding; keep 0..3)
     heading = int(ram[r["player_direction"]]) % 4
 
     return dict(
-        px=px_bin, py=py_bin,
-        vx=vxs, vy=vys,
+        px=player_x,
+        py=player_y,
+        vx=velocity_x,
+        vy=velocity_y,
         heading=heading,
         ghost_sector=ghost_sector,     # 0..4
         ghost_direction=ghost_direction, # 0..8
-        fruit_flag=fruit_flag,
-        fruit_sector=fruit_sector, 
-        fruit_direction=fruit_direction,
-        dots=int(ram[r["dots_eaten_count"]]) // 5,
-        lives=int(ram[r["num_lives"]]),
+        #dots=int(ram[r["dots_eaten_count"]]) // 5,
         prev_action=int(prev_action),
     )
     
@@ -187,13 +190,13 @@ def sector_distance_state_distance(state1, state2):
     # heading
     diff_heading = heading_dist(state1["heading"], state2["heading"])
     # nearest ghost (band + sector)
-    diff_ghost_sector = abs(int(state1.get('ghost_sector', 4)) - int(state2.get('ghost_direction', 4)))
-    diff_ghost_direction = relative_direction_dist(state1.get('ghost_sector', 8), state2.get('ghost_direction', 8))
+    diff_ghost_sector = abs(int(state1["ghost_sector"]) - int(state2["ghost_sector"]))
+    diff_ghost_direction = relative_direction_dist(state1["ghost_direction"], state2["ghost_direction"])
 
-    diff_progress = 0.05 * abs(int(state1.get('dots', 0)) - int(state2.get('dots', 0)))
-    diff_prev_act = 0.1  * (int(state1.get('prev_action', -1)) != int(state2.get('prev_action', -1)))
+    #diff_progress = 0.05*abs(int(state1["dots"]) - int(state2["dots"]))
+    diff_prev_act = 0.1*(int(state1["prev_action"]) != int(state2["prev_action"]))
     
-    distance = diff_px + diff_py + diff_vx + diff_vy + diff_heading + diff_ghost_sector + diff_ghost_direction + diff_progress + diff_prev_act
+    distance = diff_px + diff_py + diff_vx + diff_vy + diff_heading + diff_ghost_sector + diff_ghost_direction + diff_prev_act
     return float(distance)
 
 def direction_dist(mod, a, b):
@@ -210,3 +213,65 @@ def relative_direction_dist(a, b):
 
 def heading_dist(a, b):
     return direction_dist(4, a, b)
+
+
+"""State function 3"""
+
+# no fruit, no lives
+# no current position, only distance and direction of closest ghost
+# keep track of if stuck?
+
+def directional_positionless(ram, _, prev_action, stuck_flag):
+    r = MS_PACMAN_RAM_INFO
+
+    # Current positions of player & ghosts
+    player_x, player_y = int(ram[r["player_x"]]), int(ram[r["player_y"]])
+    ghosts = [
+        (int(ram[r["enemy_blinky_x"]]), int(ram[r["enemy_blinky_y"]])),
+        (int(ram[r["enemy_pinky_x"]]), int(ram[r["enemy_pinky_y"]])),
+        (int(ram[r["enemy_inky_x"]]), int(ram[r["enemy_inky_y"]])),
+        (int(ram[r["enemy_sue_x"]]), int(ram[r["enemy_sue_y"]])),
+    ]
+    
+    ghosts_info = []
+    for ghost_x, ghost_y in ghosts:
+        if 66 < ghost_x < 100 and 50 < ghost_y < 98:
+            dx, dy = ghost_x - player_x, ghost_y - player_y
+            ghosts_info.append((ghost_x, ghost_y, dx, dy, euclid_distance(dx, dy)))
+    
+    if len(ghosts_info) == 0:
+        dx, dy = ghost_x - player_x, ghost_y - player_y
+        ghosts_info.append((ghost_x, ghost_y, dx, dy, euclid_distance(dx, dy)))
+
+    # Get distance + direction of nearest ghost
+    _, _, dxg, dyg, dg = min(ghosts_info, key=lambda t: t[4])
+    ghost_sector = round_distance_sector(dg)
+    ghost_direction = relative_direction(dxg, dyg)
+    
+    return dict(
+        ghost_sector=ghost_sector,
+        ghost_direction=ghost_direction,
+        prev_action=prev_action,
+        stuck_flag=stuck_flag,
+    )
+    
+def directional_positionless_approximation(agent: QLearningAgent, cur_state):
+    min_distance, closest_q_vals = math.inf, None
+    for state, q_vals in agent.q_by_state.items():
+        distance = directional_positionless_distance(cur_state, state)
+        if distance < min_distance:
+            min_distance = distance
+            closest_q_vals = q_vals
+    return closest_q_vals
+
+def directional_positionless_distance(state1, state2):
+    state1 = dict(state1)
+    state2 = dict(state2)
+    
+    diff_ghost_sector = abs(int(state1["ghost_sector"]) - int(state2["ghost_sector"]))
+    diff_ghost_direction = relative_direction_dist(state1["ghost_direction"], state2["ghost_direction"])
+
+    diff_prev_act = 0.5  * abs((int(state1["prev_action"]) - int(state2["prev_action"])))
+    diff_stuck = 1 if (state1["stuck_flag"] == state2["stuck_flag"]) else 0
+    distance = diff_ghost_sector + diff_ghost_direction + diff_prev_act + diff_stuck
+    return distance
